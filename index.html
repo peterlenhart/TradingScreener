@@ -525,15 +525,17 @@ function tradeStarten(i){
   putLog(l); zeige("log");
 }
 function zeigeSignal(id){
-  const t=getLog().find(x=>x.id===id);
-  if(!t||!t.sig){ alert("Zu diesem Trade wurden keine Signaldaten gespeichert."); return; }
-  const kx=t.sig.kx, d=t.direction;
+  const t=getLog().find(x=>String(x.id)===String(id));
+  if(!t) return;
+  const sig=t.sig||null;
+  const kx=(sig&&sig.kx)||null;
+  const d=t.direction;
   const soft=d==="LONG"?"var(--green-soft)":"var(--red-soft)";
   const stark=d==="LONG"?"var(--green)":"var(--red)";
-  const chips=[chip(kx.ema), chip("24 h "+pct(kx.tr24), kx.tr24>=0?"g":"r"),
-    t.sig.gegen?chip("gegen den Trend","y"):t.sig.mit?chip("mit dem Trend"):"",
+  const chips = kx ? [chip(kx.ema), chip("24 h "+pct(kx.tr24), kx.tr24>=0?"g":"r"),
+    sig.gegen?chip("gegen den Trend","y"):sig.mit?chip("mit dem Trend"):"",
     kx.eng?chip("Konsolidierung"):"", kx.gapOben?chip("Lücke oberhalb offen"):"",
-    kx.gapUnten?chip("Lücke unterhalb offen"):"", kx.vr>=1.8?chip("Volumen "+kx.vr.toFixed(1)+"×"):""].join("");
+    kx.gapUnten?chip("Lücke unterhalb offen"):"", kx.vr>=1.8?chip("Volumen "+kx.vr.toFixed(1)+"×"):""].join("") : "";
   const tv="https://www.tradingview.com/chart/?symbol="+encodeURIComponent(t.market+"USDT.P");
   const eingang=new Date(t.ts);
   const ende=new Date(t.ts+8*15*60000);
@@ -549,13 +551,15 @@ function zeigeSignal(id){
     +'<div class="kv"><span class="k">Eingestiegen</span><span class="v">'+eingang.toLocaleTimeString("de-AT",{hour:"2-digit",minute:"2-digit"})+'</span></div>'
     +'<div class="kv"><span class="k">Ausstieg nach 8 Kerzen</span><span class="v">'+ende.toLocaleTimeString("de-AT",{hour:"2-digit",minute:"2-digit"})
       +(rest>0?'  ·  noch '+rest+' Min':'  ·  fällig')+'</span></div>'
-    +'<div class="kv"><span class="k">Regel</span><span class="v" style="font-family:ui-monospace,monospace;font-size:13px">'+t.sig.paar+'</span></div>'
-    +'<div class="kv"><span class="k">Blindtest</span><span class="v">'+(t.sig.blind*100).toFixed(1)+' % · '+t.sig.n+' Fälle</span></div>'
-    +'<div class="chips">'+chips+'</div>'
+    +(sig?'<div class="kv"><span class="k">Regel</span><span class="v" style="font-family:ui-monospace,monospace;font-size:13px">'+sig.paar+'</span></div>'
+        +'<div class="kv"><span class="k">Blindtest</span><span class="v">'+(sig.blind*100).toFixed(1)+' % · '+sig.n+' Fälle</span></div>':'')
+    +(chips?'<div class="chips">'+chips+'</div>':'<div class="hint" style="margin-top:12px">Zu diesem Trade wurden keine Signaldaten gespeichert – er wurde von Hand oder mit einer älteren Fassung eingetragen.</div>')
     +'<a class="b" href="'+tv+'" target="_blank" rel="noopener" style="display:flex;align-items:center;justify-content:center;gap:9px">'
     +'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
     +'<path d="M3 17l5-6 4 4 6-8"/><path d="M3 21h18"/></svg>Chart in TradingView öffnen</a>'
-    +'<button class="b '+(d==="LONG"?"long":"short")+'" onclick="schliesseSheet();closeT('+t.id+')">Trade abschließen</button>';
+    +(t.status==="offen"
+        ? '<button class="b '+(d==="LONG"?"long":"short")+'" onclick="schliesseSheet();closeT(\''+t.id+'\')">Trade abschließen</button>'
+        : '<button class="b" onclick="schliesseSheet();closeT(\''+t.id+'\')">Eintrag ändern</button>');
   oeffneSheet("shSignal");
 }
 let mRicht="SHORT";
@@ -573,7 +577,7 @@ function kapital(vz){
   document.getElementById("backupInfo").textContent=(vz>0?"Einlage":"Entnahme")+" von "+Math.abs(v).toFixed(2)+" € eingetragen";
 }
 function saveSet(){const s=getSet();const v=zahl(document.getElementById("setStart").value);if(!isNaN(v))s.start=v;putSet(s);render();}
-function delT(id){ if(!confirm("Eintrag löschen?"))return; putLog(getLog().filter(t=>t.id!==id)); render(); }
+function delT(id){ if(!confirm("Eintrag löschen?"))return; putLog(getLog().filter(t=>String(t.id)!==String(id))); render(); }
 
 /* Abschluss */
 let offenId=null, offenKonto=0, vz=1;
@@ -581,7 +585,7 @@ function kontoVor(l,t){ const idx=l.indexOf(t); const frueher=l.slice(idx+1).fil
 function zeigeVZ(s){vz=s;document.getElementById("bGew").style.opacity=s>0?"1":".35";document.getElementById("bVer").style.opacity=s<0?"1":".35";}
 function setVZ(s){zeigeVZ(s);const E=document.getElementById("inEur");if(E.value!==""){E.value=(Math.abs(zahl(E.value))*vz).toFixed(2);rechne("eur");}else vorschau(null);}
 function closeT(id){
-  const l=getLog(), t=l.find(x=>x.id===id); if(!t)return;
+  const l=getLog(), t=l.find(x=>String(x.id)===String(id)); if(!t)return;
   offenId=id; offenKonto=kontoVor(l,t);
   const bearb=t.status!=="offen";
   document.getElementById("closeTitel").textContent=bearb?"Eintrag ändern":"Trade abschließen";
@@ -609,7 +613,7 @@ function rechne(q){
 function speichern(){
   const v=zahl(document.getElementById("inEur").value), p=zahl(document.getElementById("inPct").value);
   if(isNaN(v))return;
-  const l=getLog(), t=l.find(x=>x.id===offenId); if(!t)return;
+  const l=getLog(), t=l.find(x=>String(x.id)===String(offenId)); if(!t)return;
   t.status=v>=0?"gewinn":"verlust"; t.res=v; t.pct=isNaN(p)?null:(v<0?-Math.abs(p):Math.abs(p)); t.closed=t.closed||Date.now();
   putLog(l); schliesseSheet(); render();
 }
@@ -653,22 +657,22 @@ function render(){
   const fmt=t=>new Date(t).toLocaleString("de-AT",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"});
   const off=st.l.filter(t=>t.status==="offen");
   document.getElementById("offene").style.display=off.length?"":"none";
-  document.getElementById("offeneListe").innerHTML=off.map(t=>'<div class="item"><div onclick="zeigeSignal('+t.id+')" style="cursor:pointer;flex:1"><strong>'+t.market+'</strong> <span class="badge '+(t.direction==="LONG"?"L":"S")+'" style="font-size:11px;padding:2px 7px">'+t.direction+'</span>'
-    +'<div class="mini">'+fmt(t.ts)+(t.stopPct?' · Stop '+(t.stopPct*100).toFixed(2)+' %':'')+(t.sig?' · Details ansehen':'')+'</div></div>'
-    +'<div style="display:flex;gap:6px"><button class="b '+(t.direction==="LONG"?"long":"short")+' small" style="margin:0;width:auto" onclick="closeT('+t.id+')">Abschließen</button>'
-    +'<button class="b small" style="margin:0;width:auto" onclick="delT('+t.id+')">✕</button></div></div>').join("");
+  document.getElementById("offeneListe").innerHTML=off.map(t=>'<div class="item"><div onclick="zeigeSignal(\''+t.id+'\')" style="cursor:pointer;flex:1;min-width:0"><strong>'+t.market+'</strong> <span class="badge '+(t.direction==="LONG"?"L":"S")+'" style="font-size:11px;padding:2px 7px">'+t.direction+'</span>'
+    +'<div class="mini">'+fmt(t.ts)+(t.stopPct?' · Stop '+(t.stopPct*100).toFixed(2)+' %':'')+' · antippen für Details</div></div>'
+    +'<div style="display:flex;gap:6px"><button class="b '+(t.direction==="LONG"?"long":"short")+' small" style="margin:0;width:auto" onclick="closeT(\''+t.id+'\')">Abschließen</button>'
+    +'<button class="b small" style="margin:0;width:auto" onclick="delT(\''+t.id+'\')">✕</button></div></div>').join("");
   // Kontostand je Eintrag
   const bal={}; let k=st.s.start||0;
   for(const t of st.l.filter(x=>x.status!=="offen").slice().sort((a,b)=>a.closed-b.closed)){k+=t.res;bal[t.id]=k;}
   const zu=st.l.filter(t=>t.status!=="offen");
   document.getElementById("logListe").innerHTML=zu.length?zu.map(t=>{
     if(t.status==="kapital") return '<div class="item" style="opacity:.8"><div><strong>'+t.market+'</strong><div class="mini">'+fmt(t.ts)+'</div></div>'
-      +'<div style="display:flex;gap:8px;align-items:center"><span class="v" style="color:var(--muted)">'+eur(t.res)+'</span><button class="b small" style="margin:0;width:auto" onclick="delT('+t.id+')">✕</button></div></div>';
+      +'<div style="display:flex;gap:8px;align-items:center"><span class="v" style="color:var(--muted)">'+eur(t.res)+'</span><button class="b small" style="margin:0;width:auto" onclick="delT(\''+t.id+'\')">✕</button></div></div>';
     const p=t.pct!=null?t.pct:0;
-    return '<div class="item"><div style="min-width:0;flex:1;overflow:hidden"><strong>'+t.market+'</strong> <span class="badge '+(t.direction==="LONG"?"L":"S")+'" style="font-size:11px;padding:2px 7px">'+t.direction+'</span>'
+    return '<div class="item"><div onclick="zeigeSignal(\''+t.id+'\')" style="min-width:0;flex:1;overflow:hidden;cursor:pointer"><strong>'+t.market+'</strong> <span class="badge '+(t.direction==="LONG"?"L":"S")+'" style="font-size:11px;padding:2px 7px">'+t.direction+'</span>'
       +'<div class="mini" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+fmt(t.ts)+' · '+bal[t.id].toFixed(2)+' €</div></div>'
       +'<div style="display:flex;gap:8px;align-items:center;flex-shrink:0"><span style="color:'+farbe(t.res)+';white-space:nowrap"><span class="v">'+eur(t.res)+'</span> <span style="font-size:12px;opacity:.8">'+pct(p)+'</span></span>'
-      +'<button class="b small" style="margin:0;width:auto;padding:6px 9px" onclick="closeT('+t.id+')">✎</button><button class="b small" style="margin:0;width:auto;padding:6px 9px" onclick="delT('+t.id+')">✕</button></div></div>';
+      +'<button class="b small" style="margin:0;width:auto;padding:6px 9px" onclick="closeT(\''+t.id+'\')">✎</button><button class="b small" style="margin:0;width:auto;padding:6px 9px" onclick="delT(\''+t.id+'\')">✕</button></div></div>';
   }).join(""):'<div class="empty">Noch keine abgeschlossenen Trades.</div>';
 }
 
